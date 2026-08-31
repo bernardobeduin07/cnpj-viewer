@@ -1,0 +1,11 @@
+﻿*.db
+*.zip
+*.tmp
+arquivos/
+dados_cnpj_zip/
+{NOME_DB}
+__pycache__/
+*.pyc
+.env
+.vscode/
+.idea/
