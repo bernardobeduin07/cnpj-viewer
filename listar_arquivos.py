@@ -3,6 +3,7 @@ from xml.etree import ElementTree as ET
 import zipfile
 import pandas as pd
 
+# URL_BASE = "https://arquivos.receitafederal.gov.br/index.php/s/"
 URL_WEBDAV = "https://arquivos.receitafederal.gov.br/public.php/dav/files"
 TOKEN = "YggdBLfdninEJX9"
 
@@ -31,8 +32,8 @@ def buscar_arquivos(data: str) -> list[dict]:
 
         arquivos.append({
             "nome": nome,
-            "tamanho": int(size_el.text) if size_el is not None else 0,
-            "etag": etag_el.text.strip('"') if etag_el is not None else "",
+            "tamanho": int(size_el.text) if size_el is not None else 0
+            # "etag": etag_el.text.strip('"') if etag_el is not None else "",
         })
 
     return arquivos

@@ -1,122 +1,146 @@
+"""
+CNPJ Viewer — Aplicação Principal (Streamlit).
+Ponto de entrada do sistema web para consulta dos dados públicos de CNPJ da Receita Federal.
+Arquitetura Modular desacoplada em Camada de Dados (sql), Enriquecimento (enrichment) e Visão (views).
+"""
+import os
 import sqlite3
-import pandas as pd
 import streamlit as st
 
+from download_manager import obter_gerenciador
 from sql import NOME_DB
+from enrichment import carregar_tabelas_apoio, carregar_dados_dashboard
+from views import render_dashboard_tab, render_search_tab, render_filter_tab
 
-# Configuração da página
+# ============================================================
+# 1. Configuração da Página
+# ============================================================
 st.set_page_config(
-    page_title="Consulta CNPJ",
+    page_title="Consulta de Empresas — CNPJ",
     page_icon="🏢",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Conexão com o banco
+# Inicializa o processo de download/atualização automática em background (1x)
+gerenciador = obter_gerenciador()
+gerenciador.verificar_e_iniciar_automatico()
+
+# ============================================================
+# 2. Conexão com o Banco SQLite (Cacheada)
+# ============================================================
 @st.cache_resource
-def conectar():
+def obter_conexao() -> sqlite3.Connection:
+    """Retorna conexão persistente thread-safe com o banco de dados SQLite."""
     return sqlite3.connect(NOME_DB, check_same_thread=False)
 
-conn = conectar()
+def banco_inicializado() -> bool:
+    """Verifica se o arquivo do banco existe e possui a tabela Empresas criada."""
+    if not os.path.exists(NOME_DB) or os.path.getsize(NOME_DB) == 0:
+        return False
+    try:
+        conn = obter_conexao()
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='Empresas'")
+        return cur.fetchone() is not None
+    except Exception:
+        return False
 
-# Verificar se o banco tem dados
-def tabela_existe(nome: str) -> bool:
-    cur = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-        (nome,)
-    )
-    return cur.fetchone() is not None
+# ============================================================
+# 3. Barra Lateral: Monitoramento em Tempo Real (@st.fragment)
+# ============================================================
+with st.sidebar:
+    st.header("⚙️ Status do Sistema")
 
-if not tabela_existe("Empresas"):
-    st.warning("Banco vazio. Execute `python main.py` primeiro.")
-    st.stop()
+    @st.fragment(run_every="1s")
+    def painel_status_background() -> None:
+        """Renderiza e re-executa a cada 1s o progresso de download/ingestão sem piscar a tela principal."""
+        if gerenciador.verificando_api:
+            st.info("🔄 Verificando atualizações na Receita Federal...")
+        elif gerenciador.em_execucao:
+            st.info(f"⏳ **{gerenciador.etapa_atual}:** `{gerenciador.arquivo_atual}`")
 
-# Header com métricas
-st.title("Consulta de Empresas — CNPJ")
+            # Barra 1: Progresso Geral (Arquivos)
+            total_arquivos = max(gerenciador.total, 1)
+            concluidos = gerenciador.concluidos
+            faltam = total_arquivos - concluidos
+            prog_geral = min(max(concluidos / total_arquivos, 0.0), 1.0)
+            st.progress(prog_geral, text=f"Arquivos processados: {concluidos}/{total_arquivos} (Faltam: {faltam})")
 
-@st.cache_data(ttl=3600)
-def contar_registros():
-    total = conn.execute("SELECT COUNT(*) FROM Empresas").fetchone()[0]
-    ativas = conn.execute("""
-        SELECT COUNT(*) FROM Estabelecimentos 
-        WHERE situacao_cadastral = '02'
-    """).fetchone()[0]
-    return total, ativas
+            # Barra 2: Progresso do Arquivo Atual (Bytes)
+            lidos = gerenciador.arquivo_bytes_lidos
+            total_bytes = max(gerenciador.arquivo_bytes_total, 1)
+            prog_arquivo = min(max(lidos / total_bytes, 0.0), 1.0)
 
-total, ativas = contar_registros()
-col1, col2 = st.columns(2)
-col1.metric("Total de empresas", f"{total:,}")
-col2.metric("Estabelecimentos ativos", f"{ativas:,}")
+            mb_lidos = lidos / (1024 * 1024)
+            mb_total = total_bytes / (1024 * 1024)
+            porcentagem = prog_arquivo * 100
+            st.progress(prog_arquivo, text=f"Progresso atual: {mb_lidos:.1f} MB / {mb_total:.1f} MB ({porcentagem:.1f}%)")
 
-busca = st.text_input(
-    "🔍 Buscar por razão social ou CNPJ básico:",
-    placeholder="Ex: PETROBRAS ou 33000167"
-)
-
-if not busca:
-    st.info("Digite um termo para buscar.")
-    st.stop()
-
-if len(busca) < 3:
-    st.warning("Digite pelo menos 3 caracteres.")
-    st.stop()
-
-# Query principal
-@st.cache_data(ttl=300)
-def buscar(termo: str):
-    query = """
-        SELECT * FROM Empresas
-        WHERE razao_social LIKE ? OR cnpj_basico = ?
-        LIMIT 50
-    """
-    return pd.read_sql_query(
-        query, conn, params=(f"%{termo}%", termo)
-    )
-
-with st.spinner("Buscando..."):
-    df = buscar(busca)
-
-if df.empty:
-    st.error("Nenhum resultado encontrado.")
-    st.stop()
-
-st.success(f"Encontrados {len(df)} resultado(s).")
-
-# Resultados em tabela
-st.dataframe(df, use_container_width=True)
-
-# Detalhes de uma empresa selecionada
-cnpjs = df["cnpj_basico"].tolist()
-selecionado = st.selectbox("Selecione um CNPJ para ver detalhes:", cnpjs)
-
-if selecionado:
-    tab_empresa, tab_estab, tab_socios = st.tabs([
-        "Empresa", "Estabelecimentos", "Sócios"
-    ])
-
-    with tab_empresa:
-        empresa = df[df["cnpj_basico"] == selecionado].iloc[0]
-        col1, col2 = st.columns(2)
-        col1.write(f"**Razão Social:** {empresa['razao_social']}")
-        col1.write(f"**CNPJ Básico:** {empresa['cnpj_basico']}")
-        col2.write(f"**Capital Social:** R\$ {empresa['capital_social']}")
-        col2.write(f"**Porte:** {empresa['porte_empresa']}")
-
-    with tab_estab:
-        df_estab = pd.read_sql_query(
-            "SELECT * FROM Estabelecimentos WHERE cnpj_basico = ?",
-            conn, params=(selecionado,)
-        )
-        if df_estab.empty:
-            st.info("Nenhum estabelecimento encontrado.")
+            if st.button("🛑 Cancelar Próximos", use_container_width=True):
+                gerenciador.cancelar()
         else:
-            st.dataframe(df_estab, use_container_width=True)
+            st.success("✅ Base de dados 100% atualizada.")
+            if st.button("🔄 Forçar Nova Verificação", use_container_width=True):
+                gerenciador._ja_iniciou_auto = False
+                gerenciador.verificando_api = False
+                gerenciador.verificar_e_iniciar_automatico()
+                st.rerun()
 
-    with tab_socios:
-        df_socios = pd.read_sql_query(
-            "SELECT * FROM Socios WHERE cnpj_basico = ?",
-            conn, params=(selecionado,)
-        )
-        if df_socios.empty:
-            st.info("Nenhum sócio encontrado.")
-        else:
-            st.dataframe(df_socios, use_container_width=True)
+        # Histórico recente de logs
+        if gerenciador.historico_logs:
+            with st.expander("📋 Logs de Atualização", expanded=False):
+                st.code("\n".join(gerenciador.historico_logs[-15:]), language="text")
+
+    painel_status_background()
+
+# ============================================================
+# 4. Interface Principal: Cabeçalho e Métricas Rápidas
+# ============================================================
+st.title("🏢 Consulta de Empresas — CNPJ")
+
+if not banco_inicializado():
+    st.warning(
+        "⚠️ O banco de dados está sendo construído pela primeira vez em segundo plano. "
+        "Aguarde o download e a importação de alguns arquivos para conseguir buscar dados."
+    )
+
+conn = obter_conexao()
+
+# Carregamento em memória das tabelas de apoio (O(1) para lookups)
+apoio = carregar_tabelas_apoio(NOME_DB)
+cnaes_map = apoio.get("cnaes", {})
+
+# Carregamento das estatísticas consolidadas (sub-segundo)
+dados_dashboard = carregar_dados_dashboard(NOME_DB, cnaes_map)
+metricas = dados_dashboard.get("metricas", {})
+
+total_emp = int(metricas.get("total_empresas", 0))
+total_estab = int(metricas.get("total_estabelecimentos", 0))
+total_soc = int(metricas.get("total_socios", 0))
+
+# Cards de KPI no topo da página
+col_m1, col_m2, col_m3 = st.columns(3)
+col_m1.metric("🏢 Total de Empresas Registradas", f"{total_emp:,}")
+col_m2.metric("📍 Estabelecimentos Cadastrados", f"{total_estab:,}")
+col_m3.metric("👥 Sócios e Administradores", f"{total_soc:,}")
+
+st.divider()
+
+# ============================================================
+# 5. Navegação por Abas Modulares
+# ============================================================
+tab_dashboard, tab_busca, tab_filtros = st.tabs([
+    "📊 Panorama Geral & Estatísticas",
+    "🏢 Busca por Empresa ou CNPJ",
+    "🎯 Filtros & Exploração de Mercado"
+])
+
+with tab_dashboard:
+    render_dashboard_tab(conn, dados_dashboard)
+
+with tab_busca:
+    render_search_tab(conn, apoio)
+
+with tab_filtros:
+    render_filter_tab(conn, apoio)
