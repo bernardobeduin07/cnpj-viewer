@@ -1,6 +1,5 @@
 import threading
 import time
-from pathlib import Path
 from typing import List, Dict
 
 import streamlit as st
@@ -114,6 +113,7 @@ class DownloadManager:
         self.etapa_atual = ""
         self.arquivo_bytes_lidos = 0
         self.arquivo_bytes_total = 0
+
         if not self._cancelar:
             try:
                 self.adicionar_log("Criando e verificando índices essenciais...")

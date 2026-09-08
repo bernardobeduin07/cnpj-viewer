@@ -10,7 +10,7 @@ import time
 import sqlite3
 import pandas as pd
 import streamlit as st
-from typing import Dict, Any, Tuple
+from typing import Dict, Tuple
 
 from enrichment import (
     formatar_cnpj,

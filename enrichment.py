@@ -129,7 +129,7 @@ def formatar_data(data_str: Optional[str]) -> str:
 
 
 def formatar_cep(cep_str: Optional[str]) -> str:
-    """Converte '01001000' em '01001-000'."""
+    """Converte '01001000' em '01001-000'"""
     if not cep_str or str(cep_str).strip() in ("", "None", "nan"):
         return "—"
     s = str(cep_str).strip().zfill(8)
@@ -139,7 +139,7 @@ def formatar_cep(cep_str: Optional[str]) -> str:
 
 
 def formatar_telefone(ddd: Optional[str], telefone: Optional[str]) -> str:
-    """Formata DDD e número em '(DD) NNNN-NNNN'."""
+    """Formata DDD e número em '(DD) NNNN-NNNN'"""
     ddd_limpo = str(ddd).strip() if ddd and str(ddd).strip() not in ("None", "nan") else ""
     tel_limpo = str(telefone).strip() if telefone and str(telefone).strip() not in ("None", "nan") else ""
     if not tel_limpo:
@@ -365,5 +365,3 @@ def carregar_dados_dashboard(caminho_db: str, cnaes_map: Dict[str, str]) -> Dict
         "df_porte": df_porte,
         "df_cnae": df_cnae
     }
-
-

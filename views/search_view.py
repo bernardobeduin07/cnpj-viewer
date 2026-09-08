@@ -130,11 +130,12 @@ def render_search_tab(conn: sqlite3.Connection, apoio: Dict[str, Dict[str, str]]
                 WHERE razao_social LIKE ?
                 LIMIT 50
             """
+
             if not busca_ampla:
-                # Nível 1: Prefixo indexado via idx_empresas_razao (< 1ms)
+                # Prefixo indexado via idx_empresas_razao
                 df_resultados = pd.read_sql_query(query_nome, conn, params=(f"{termo_pesquisa}%",))
                 if df_resultados.empty:
-                    # Nível 2: Fallback automático se não houver prefixo exato
+                    # Fallback automático se não houver prefixo exato
                     df_resultados = pd.read_sql_query(query_nome, conn, params=(f"%{termo_pesquisa}%",))
                     if not df_resultados.empty:
                         st.info(f"💡 Nenhuma empresa encontrada iniciando por '{termo_pesquisa}'. Exibindo correspondências parciais encontradas no nome.")
@@ -147,6 +148,7 @@ def render_search_tab(conn: sqlite3.Connection, apoio: Dict[str, Dict[str, str]]
             st.error(f"Nenhuma empresa encontrada com o termo `{termo_pesquisa}` (tempo de busca: **{duracao_busca:.3f}s**).")
         else:
             st.success(f"Encontrados **{len(df_resultados)}** resultado(s) em **{duracao_busca:.3f}s**.")
+            
             df_exibicao = pd.DataFrame({
                 "CNPJ Básico": df_resultados["cnpj_basico"].apply(formatar_cnpj),
                 "Razão Social": df_resultados["razao_social"],

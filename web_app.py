@@ -22,12 +22,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Inicializa o processo de download/atualização automática em background (1x)
+# Inicializa o processo de download/atualização automática em background
 gerenciador = obter_gerenciador()
 gerenciador.verificar_e_iniciar_automatico()
 
 # ============================================================
-# 2. Conexão com o Banco SQLite (Cacheada)
+# 2. Conexão com o Banco SQLite em Cache
 # ============================================================
 @st.cache_resource
 def obter_conexao() -> sqlite3.Connection:
@@ -47,27 +47,27 @@ def banco_inicializado() -> bool:
         return False
 
 # ============================================================
-# 3. Barra Lateral: Monitoramento em Tempo Real (@st.fragment)
+# 3. Barra Lateral: Monitoramento em Tempo Real
 # ============================================================
 with st.sidebar:
     st.header("⚙️ Status do Sistema")
 
     @st.fragment(run_every="1s")
     def painel_status_background() -> None:
-        """Renderiza e re-executa a cada 1s o progresso de download/ingestão sem piscar a tela principal."""
+        """Renderiza e executa a cada 1s o progresso de download/ingestão."""
         if gerenciador.verificando_api:
             st.info("🔄 Verificando atualizações na Receita Federal...")
         elif gerenciador.em_execucao:
             st.info(f"⏳ **{gerenciador.etapa_atual}:** `{gerenciador.arquivo_atual}`")
 
-            # Barra 1: Progresso Geral (Arquivos)
+            # Barra 1: Progresso Geral
             total_arquivos = max(gerenciador.total, 1)
             concluidos = gerenciador.concluidos
             faltam = total_arquivos - concluidos
             prog_geral = min(max(concluidos / total_arquivos, 0.0), 1.0)
             st.progress(prog_geral, text=f"Arquivos processados: {concluidos}/{total_arquivos} (Faltam: {faltam})")
 
-            # Barra 2: Progresso do Arquivo Atual (Bytes)
+            # Barra 2: Progresso do Arquivo Atual em bytes
             lidos = gerenciador.arquivo_bytes_lidos
             total_bytes = max(gerenciador.arquivo_bytes_total, 1)
             prog_arquivo = min(max(lidos / total_bytes, 0.0), 1.0)
@@ -107,11 +107,11 @@ if not banco_inicializado():
 
 conn = obter_conexao()
 
-# Carregamento em memória das tabelas de apoio (O(1) para lookups)
+# Carregamento em memória das tabelas de apoio
 apoio = carregar_tabelas_apoio(NOME_DB)
 cnaes_map = apoio.get("cnaes", {})
 
-# Carregamento das estatísticas consolidadas (sub-segundo)
+# Carregamento das estatísticas consolidadas
 dados_dashboard = carregar_dados_dashboard(NOME_DB, cnaes_map)
 metricas = dados_dashboard.get("metricas", {})
 

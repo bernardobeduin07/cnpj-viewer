@@ -9,7 +9,7 @@ Renderiza as 4 sub-abas analíticas de uma empresa selecionada:
 import sqlite3
 import pandas as pd
 import streamlit as st
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 
 from enrichment import (
     formatar_cnpj,

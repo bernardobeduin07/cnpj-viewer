@@ -1,6 +1,5 @@
 import os
 import re
-import glob
 from pathlib import Path
 from datetime import date
 from xml.etree import ElementTree as ET
@@ -81,22 +80,29 @@ def limpar_arquivos_antigos(nome_arquivo: str, data_atual: str):
 
 def baixar_arquivo(nome_arquivo: str, callback=None, data: str | None = None) -> Path:
     PASTA_ARQUIVOS.mkdir(exist_ok=True)
+
     if data is None:
         data = obter_data_mais_recente()
+
     nome_arquivo_local = gerar_nome_local(nome_arquivo, data)
     nome_arquivo_temporario = gerar_nome_temporario(nome_arquivo)
     url_download = gerar_url(nome_arquivo, data)
+
     # Se o arquivo zip da data já existe localmente, pula o download
     if nome_arquivo_local.is_file():
         print(f"Arquivo {nome_arquivo_local.name} já existe localmente.")
         return nome_arquivo_local
+    
     print(f"Iniciando download de {url_download}...")
+
     response = requests.get(url_download, stream=True, timeout=30)
     response.raise_for_status()
+
     # Limpa versões anteriores apenas após a confirmação de que a nova versão existe na URL
     limpar_arquivos_antigos(nome_arquivo, data)
     tamanho_total = int(response.headers.get("content-length", 0))
     chunk_size = 1024 * 1024  # 1 MB
+    
     try:
         with open(nome_arquivo_temporario, "wb") as f:
             with tqdm(total=tamanho_total, unit="B", unit_scale=True, desc=nome_arquivo) as barra:
@@ -107,10 +113,12 @@ def baixar_arquivo(nome_arquivo: str, callback=None, data: str | None = None) ->
                     barra.update(len(chunk))
                     if callback:
                         callback(f.tell(), tamanho_total)
+
         # Renomeia com sucesso o temporário para o destino final
         os.replace(nome_arquivo_temporario, nome_arquivo_local)
         print(f"Download de {nome_arquivo_local.name} concluído com sucesso!")
         return nome_arquivo_local
+    
     except Exception:
         if nome_arquivo_temporario.exists():
             nome_arquivo_temporario.unlink()

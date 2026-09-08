@@ -1,7 +1,5 @@
 import requests
 from xml.etree import ElementTree as ET
-import zipfile
-import pandas as pd
 
 # URL_BASE = "https://arquivos.receitafederal.gov.br/index.php/s/"
 URL_WEBDAV = "https://arquivos.receitafederal.gov.br/public.php/dav/files"
@@ -28,7 +26,7 @@ def buscar_arquivos(data: str) -> list[dict]:
             continue
 
         size_el = item.find(".//d:getcontentlength", ns)
-        etag_el = item.find(".//d:getetag", ns)
+        # etag_el = item.find(".//d:getetag", ns)
 
         arquivos.append({
             "nome": nome,

@@ -8,7 +8,6 @@ Renderiza os gráficos analíticos em Altair sobre os 138M+ de registros:
 - Painel de Manutenção e Recálculo Analítico
 """
 import sqlite3
-import pandas as pd
 import altair as alt
 import streamlit as st
 from typing import Dict, Any
@@ -32,7 +31,6 @@ def render_dashboard_tab(conn: sqlite3.Connection, dados_dashboard: Dict[str, An
 
     # ------------------------------------------------------------
     # Linha 1 de Gráficos: Distribuição Geográfica & Situação Cadastral
-    # Perfeitamente alinhados na horizontal e com mesmo height=340
     # ------------------------------------------------------------
     col_g1, col_g2 = st.columns(2, vertical_alignment="top")
 

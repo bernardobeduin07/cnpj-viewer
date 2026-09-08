@@ -437,7 +437,7 @@ def inserir_arquivo_no_banco_dados(nome_arquivo: str, callback=None):
         with sqlite3.connect(NOME_DB) as conn:
             cursor = conn.cursor()
 
-            # 🔥 PRAGMAs mágicos para máxima velocidade de escrita:
+            # PRAGMAs para maior velocidade de escrita:
             cursor.execute("PRAGMA synchronous = OFF;")
             cursor.execute("PRAGMA journal_mode = WAL;")
             cursor.execute("PRAGMA cache_size = -128000;") # 128 MB de cache RAM
@@ -460,7 +460,7 @@ def inserir_arquivo_no_banco_dados(nome_arquivo: str, callback=None):
                         # Substitui NaNs por None (NULL no SQL)
                         df_chunk = df_chunk.where(pd.notnull(df_chunk), None)
 
-                        # Insere nativamente em lote de tuplas (ultrarrápido)
+                        # Insere nativamente em lote de tuplas
                         cursor.executemany(sql_insert, df_chunk.itertuples(index=False, name=None))
                         
                         total_linhas += len(df_chunk)
